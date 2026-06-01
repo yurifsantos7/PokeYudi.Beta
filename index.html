@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Pokémon Showdown - Arena Emerald Completa</title>
+    <style>
+        :root { 
+            --primary: #3498db; --gold: #f1c40f; --dark: #1e272e; --success: #27ae60; --danger: #e74c3c; 
+            --phys: #d35400; --spec: #8e44ad; --emerald-green: #4da671; --emerald-dark: #2d5a43;
+            --status: #7f8c8d;
+        }
+        
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #000; color: white; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        
+        .game-window { width: 95%; max-width: 1100px; height: 95vh; background: #222; border: 4px solid #444; border-radius: 15px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 50px rgba(0,0,0,0.8); position: relative; }
+
+        .screen { flex-grow: 1; padding: 20px; display: none; overflow-y: auto; }
+        .active-screen { display: flex; flex-direction: column; }
+
+        #battle-screen { 
+            background: linear-gradient(to bottom, #80d0f0 0%, #a8e8a0 50%, #50b058 100%);
+            position: relative;
+            padding: 0;
+            overflow: hidden;
+            border-bottom: 8px solid #2d5a43;
+        }
+
+        .platform {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            transform: scaleY(0.4);
+            z-index: 1;
+            border: 5px solid rgba(255,255,255,0.1);
+        }
+        .platform-enemy { width: 280px; height: 180px; top: 130px; right: 100px; background: #60a048; }
+        .platform-player { width: 500px; height: 280px; bottom: -50px; left: -80px; background: #88d070; }
+
+        .poke-container { position: absolute; z-index: 2; transition: all 0.3s; text-align: center; }
+        .enemy-pos { top: 70px; right: 160px; }
+        .player-pos { bottom: 70px; left: 100px; }
+        
+        .sprite { image-rendering: pixelated; filter: drop-shadow(5px 5px 2px rgba(0,0,0,0.2)); }
+        .enemy-pos .sprite { height: 130px; }
+        .player-pos .sprite { height: 190px; }
+
+        .status-box {
+            position: absolute;
+            width: 270px;
+            background: #f8f8d8;
+            border: 3px solid #606060;
+            border-radius: 0 15px 0 15px;
+            padding: 10px;
+            color: #333;
+            z-index: 3;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-enemy { top: 30px; left: 40px; }
+        .status-player { bottom: 230px; right: 40px; }
+        
+        .status-avatar { width: 40px; height: 40px; image-rendering: pixelated; }
+
+        .hp-bar-bg { background: #444; height: 12px; border-radius: 6px; border: 2px solid #000; overflow: hidden; margin: 5px 0; }
+        .hp-bar { height: 100%; background: #50f850; transition: 0.5s; }
+        .speed-tag { font-size: 11px; font-weight: bold; color: #2d5a43; }
+        .ability-tag { font-size: 10px; font-style: italic; color: #555; display: block; margin-top: 2px;}
+
+        .controls-area { position: absolute; bottom: 0; width: 100%; background: #e0e0e0; height: 210px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 15px; padding: 15px; border-top: 5px solid #505050; box-sizing: border-box; }
+        #log { background: #fff; border: 4px solid #88a0b8; border-radius: 8px; padding: 12px; color: #444; font-family: monospace; font-size: 15px; overflow-y: auto; font-weight: bold; }
+        
+        .move-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn { padding: 10px; border-radius: 6px; border: 2px solid #505050; cursor: pointer; font-weight: bold; text-transform: uppercase; transition: 0.1s; }
+        .btn-move { background: #f0f0f0; color: #333; height: 55px; }
+        .btn-move.phys { border-left: 10px solid var(--phys); }
+        .btn-move.spec { border-left: 10px solid var(--spec); }
+        .btn-move.status { border-left: 10px solid var(--status); } 
+        .btn-switch { background: #60a860; color: white; width: 100%; margin-top: 10px; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+        .option-card { background: #2c3e50; padding: 10px; border-radius: 8px; cursor: pointer; text-align: center; border: 2px solid transparent; transition: transform 0.1s;}
+        .option-card:hover { transform: scale(1.05); }
+        .option-card.selected { border-color: var(--primary); background: #34495e; box-shadow: 0 0 10px var(--primary); }
+        .option-card img { height: 55px; image-rendering: pixelated; }
+        .type-badge { padding: 2px 5px; border-radius: 4px; font-size: 8px; margin: 2px; display: inline-block; color: white; text-transform: uppercase; }
+        .item-select { width: 100%; margin-top: 5px; font-size: 10px; background: #111; color: white; border: 1px solid #555; }
+    </style>
+</head>
+<body>
+
+<div class="game-window">
+    <div id="trainer-screen" class="screen active-screen">
+        <h1 style="text-align:center; color:var(--gold);">ESCOLHA SEU AVATAR</h1>
+        <div class="grid" id="trainer-grid"></div>
+    </div>
+
+    <div id="poke-screen" class="screen">
+        <h1 id="builder-title" style="text-align:center;">MONTE SUA EQUIPE (0/6)</h1>
+        <div class="grid" id="poke-grid"></div>
+        <div style="text-align:center; padding: 20px;">
+            <button id="next-btn" disabled onclick="showOpponentScreen()" style="padding:15px 50px; background:var(--primary); color:white; border:none; font-weight:bold; cursor:pointer; border-radius:5px;">AVANÇAR</button>
+        </div>
+    </div>
+
+    <div id="opponent-screen" class="screen">
+        <h1 style="text-align:center; color:var(--danger);">ESCOLHA SEU ADVERSÁRIO</h1>
+        <div class="grid" id="opponent-grid"></div>
+    </div>
+
+    <div id="battle-screen" class="screen">
+        <div class="platform platform-enemy"></div>
+        <div id="enemy-ui-anchor"></div>
+        <div class="poke-container enemy-pos">
+            <img id="enemy-poke-img" class="sprite" src="">
+        </div>
+
+        <div class="platform platform-player"></div>
+        <div id="player-ui-anchor"></div>
+        <div class="poke-container player-pos">
+            <img id="player-poke-img" class="sprite" src="">
+        </div>
+
+        <div class="controls-area">
+            <div id="log">Aguardando início...</div>
+            <div id="action-panel">
+                <div id="move-panel">
+                    <div id="move-controls" class="move-grid"></div>
+                    <button class="btn btn-switch" onclick="toggleSwitchMenu(true)">🔄 TROCAR POKÉMON</button>
+                </div>
+                <div id="switch-panel" style="display:none;">
+                    <div id="switch-controls" class="move-grid"></div>
+                    <button class="btn btn-switch" style="background:var(--danger)" onclick="toggleSwitchMenu(false)">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const TYPE_COLORS = { Normal: "#A8A77A", Fire: "#EE8130", Water: "#6390F0", Electric: "#F7D02C", Grass: "#7AC74C", Ice: "#96D9D6", Fighting: "#C22E28", Poison: "#A33EA1", Ground: "#E2BF65", Flying: "#A98FF3", Psychic: "#F95587", Bug: "#A6B91A", Rock: "#B6A136", Ghost: "#735797", Dragon: "#6F35FC", Dark: "#705898", Steel: "#B7B7CE", Fairy: "#D685AD" };
+    
+    // TABELA DE TIPOS: [Atacante][Defensor]
+    const TYPE_CHART = {
+        Normal: { Rock: 0.5, Ghost: 0, Steel: 0.5 },
+        Fire: { Fire: 0.5, Water: 0.5, Grass: 2, Ice: 2, Bug: 2, Rock: 0.5, Dragon: 0.5, Steel: 2 },
+        Water: { Fire: 2, Water: 0.5, Grass: 0.5, Ground: 2, Rock: 2, Dragon: 0.5 },
+        Electric: { Water: 2, Electric: 0.5, Grass: 0.5, Ground: 0, Flying: 2, Dragon: 0.5 },
+        Grass: { Fire: 0.5, Water: 2, Grass: 0.5, Poison: 0.5, Ground: 2, Flying: 0.5, Bug: 0.5, Rock: 2, Dragon: 0.5, Steel: 0.5 },
+        Ice: { Fire: 0.5, Water: 0.5, Grass: 2, Ice: 0.5, Ground: 2, Flying: 2, Dragon: 2, Steel: 0.5 },
+        Fighting: { Normal: 2, Ice: 2, Poison: 0.5, Flying: 0.5, Psychic: 0.5, Bug: 0.5, Rock: 2, Ghost: 0, Dark: 2, Steel: 2, Fairy: 0.5 },
+        Poison: { Grass: 2, Poison: 0.5, Ground: 0.5, Rock: 0.5, Ghost: 0.5, Steel: 0, Fairy: 2 },
+        Ground: { Fire: 2, Electric: 2, Grass: 0.5, Poison: 2, Flying: 0, Bug: 0.5, Rock: 2, Steel: 2 },
+        Flying: { Electric: 0.5, Grass: 2, Fighting: 2, Bug: 2, Rock: 0.5, Steel: 0.5 },
+        Psychic: { Fighting: 2, Poison: 2, Psychic: 0.5, Dark: 0, Steel: 0.5 },
+        Bug: { Fire: 0.5, Grass: 2, Fighting: 0.5, Poison: 0.5, Flying: 0.5, Psychic: 2, Ghost: 0.5, Dark: 2, Steel: 0.5, Fairy: 0.5 },
+        Rock: { Fire: 2, Ice: 2, Fighting: 0.5, Ground: 0.5, Flying: 2, Bug: 2, Steel: 0.5 },
+        Ghost: { Normal: 0, Psychic: 2, Ghost: 2, Dark: 0.5 },
+        Dragon: { Dragon: 2, Steel: 0.5, Fairy: 0 },
+        Dark: { Fighting: 0.5, Psychic: 2, Ghost: 2, Dark: 0.5, Fairy: 0.5 },
+        Steel: { Fire: 0.5, Water: 0.5, Electric: 0.5, Ice: 2, Rock: 2, Steel: 0.5, Fairy: 2 },
+        Fairy: { Fire: 0.5, Fighting: 2, Poison: 0.5, Dragon: 2, Dark: 2, Steel: 0.5 }
+    };
+
+    const ITEMS = [ { id: "none", name: "Sem Item" }, { id: "leftovers", name: "Leftovers" }, { id: "life-orb", name: "Life Orb" }, { id: "choice-scarf", name: "Choice Scarf" }, { id: "sitrus-berry", name: "Sitrus Berry" }, { id: "rocky-helmet", name: "Rocky Helmet" } ];
+    const TRAINERS = [ "red", "blue", "leaf", "ethan", "lyra", "silver", "brendan", "may", "wally", "lucas", "dawn", "barry", "hilbert", "hilda", "nate", "rosa", "calem", "serena", "ash", "cynthia", "steven", "lance", "wallace", "iris", "diantha", "leon", "giovanni", "guzma", "n" ];
+
+    let POKEDEX = [
+        { name: "Shedinja", ability: "Wonder Guard", type: ["Bug", "Ghost"], hp: 1, atk: 90, def: 45, spa: 30, spd: 30, spe: 40, sprite: "shedinja", moves: [{n:"Swords Dance", p:0, t:"Normal", c:"status"},{n:"X-Scissor", p:80, t:"Bug", c:"phys"},{n:"Shadow Sneak", p:40, t:"Ghost", c:"phys"},{n:"Phantom Force", p:90, t:"Ghost", c:"phys"}] },
+        { name: "Aggron", ability: "Sturdy", type: ["Steel", "Rock"], hp: 250, atk: 110, def: 180, spa: 60, spd: 60, spe: 50, sprite: "aggron", moves: [{n:"Head Smash", p:150, t:"Rock", c:"phys"},{n:"Heavy Slam", p:100, t:"Steel", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Ice Punch", p:75, t:"Ice", c:"phys"}] },
+        { name: "Arcanine", ability: "Flash Fire", type: ["Fire"], hp: 255, atk: 110, def: 80, spa: 100, spd: 80, spe: 95, sprite: "arcanine", moves: [{n:"Extreme Speed", p:80, t:"Normal", c:"phys"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"},{n:"Flare Blitz", p:120, t:"Fire", c:"phys"},{n:"Wild Charge", p:90, t:"Electric", c:"phys"}] },
+        { name: "Armaldo", ability: "Tough Claws", type: ["Rock", "Bug"], hp: 255, atk: 125, def: 100, spa: 70, spd: 80, spe: 45, sprite: "armaldo", moves: [{n:"Stone Edge", p:100, t:"Rock", c:"phys"},{n:"X-Scissor", p:80, t:"Bug", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Aqua Tail", p:90, t:"Water", c:"phys"}] },
+        { name: "Blastoise", ability: "Torrent", type: ["Water"], hp: 255, atk: 83, def: 100, spa: 85, spd: 105, spe: 78, sprite: "blastoise", moves: [{n:"Hydro Cannon", p:150, t:"Water", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"},{n:"Surf", p:90, t:"Water", c:"spec"},{n:"Flash Cannon", p:80, t:"Steel", c:"spec"}] },
+        { name: "Blaziken", ability: "Blaze", type: ["Fire", "Fighting"], hp: 235, atk: 120, def: 70, spa: 110, spd: 70, spe: 80, sprite: "blaziken", moves: [{n:"Blaze Kick", p:85, t:"Fire", c:"phys"},{n:"Sky Uppercut", p:85, t:"Fighting", c:"phys"},{n:"Flare Blitz", p:120, t:"Fire", c:"phys"},{n:"Brave Bird", p:120, t:"Flying", c:"phys"}] },
+        { name: "Charizard", ability: "Blaze", type: ["Fire", "Flying"], hp: 245, atk: 84, def: 78, spa: 109, spd: 85, spe: 100, sprite: "charizard", moves: [{n:"Blast Burn", p:150, t:"Fire", c:"spec"},{n:"Air Slash", p:75, t:"Flying", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"},{n:"Focus Blast", p:120, t:"Fighting", c:"spec"}] },
+        { name: "Dragapult", ability: "Levitate", type: ["Dragon", "Ghost"], hp: 240, atk: 120, def: 75, spa: 100, spd: 75, spe: 142, sprite: "dragapult", moves: [{n:"Dragon Dart", p:100, t:"Dragon", c:"phys"},{n:"Phantom Force", p:90, t:"Ghost", c:"phys"},{n:"U-turn", p:70, t:"Bug", c:"phys"},{n:"Steel Wing", p:70, t:"Steel", c:"phys"}] },
+        { name: "Dragonite", ability: "Multiscale", type: ["Dragon", "Flying"], hp: 255, atk: 134, def: 95, spa: 100, spd: 100, spe: 80, sprite: "dragonite", moves: [{n:"Outrage", p:120, t:"Dragon", c:"phys"},{n:"Extreme Speed", p:80, t:"Normal", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Fire Punch", p:75, t:"Fire", c:"phys"}] },
+        { name: "Excadrill", ability: "Sturdy", type: ["Ground", "Steel"], hp: 270, atk: 135, def: 60, spa: 50, spd: 65, spe: 88, sprite: "excadrill", moves: [{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Iron Head", p:80, t:"Steel", c:"phys"},{n:"Rock Slide", p:75, t:"Rock", c:"phys"},{n:"X-Scissor", p:80, t:"Bug", c:"phys"}] },
+        { name: "Ferrothorn", ability: "Rough Skin", type: ["Grass", "Steel"], hp: 245, atk: 94, def: 131, spa: 54, spd: 116, spe: 20, sprite: "ferrothorn", moves: [{n:"Power Whip", p:120, t:"Grass", c:"phys"},{n:"Gyro Ball", p:80, t:"Steel", c:"phys"},{n:"Knock Off", p:65, t:"Dark", c:"phys"},{n:"Body Press", p:80, t:"Fighting", c:"phys"}] },
+        { name: "Garchomp", ability: "Rough Skin", type: ["Dragon", "Ground"], hp: 255, atk: 130, def: 95, spa: 80, spd: 85, extrad: 102, spe: 102, sprite: "garchomp", moves: [{n:"Dragon Rush", p:100, t:"Dragon", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Stone Edge", p:100, t:"Rock", c:"phys"},{n:"Crunch", p:80, t:"Dark", c:"phys"}] },
+        { name: "Gardevoir", ability: "Pressure", type: ["Psychic", "Fairy"], hp: 230, atk: 65, def: 65, spa: 125, spd: 115, spe: 80, sprite: "gardevoir", moves: [{n:"Psychic", p:90, t:"Psychic", c:"spec"},{n:"Moonblast", p:95, t:"Fairy", c:"spec"},{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Mystical Fire", p:75, t:"Fire", c:"spec"}] },
+        { name: "Gastrodon", ability: "Storm Drain", type: ["Water", "Ground"], hp: 275, atk: 83, def: 68, spa: 92, spd: 82, spe: 39, sprite: "gastrodon", moves: [{n:"Earth Power", p:90, t:"Ground", c:"spec"},{n:"Surf", p:90, t:"Water", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"},{n:"Sludge Bomb", p:90, t:"Poison", c:"spec"}] },
+        { name: "Gengar", ability: "Levitate", type: ["Ghost", "Poison"], hp: 205, atk: 65, def: 60, spa: 130, spd: 75, spe: 110, sprite: "gengar", moves: [{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Sludge Bomb", p:90, t:"Poison", c:"spec"},{n:"Focus Blast", p:120, t:"Fighting", c:"spec"},{n:"Dazzling Gleam", p:80, t:"Fairy", c:"spec"}] },
+        { name: "Gliscor", ability: "Levitate", type: ["Ground", "Flying"], hp: 255, atk: 95, def: 125, spa: 45, spd: 75, spe: 95, sprite: "gliscor", moves: [{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Acrobatics", p:80, t:"Flying", c:"phys"},{n:"Knock Off", p:65, t:"Dark", c:"phys"},{n:"Ice Fang", p:65, t:"Ice", c:"phys"}] },
+        { name: "Golisopod", ability: "Tough Claws", type: ["Bug", "Water"], hp: 255, atk: 125, def: 140, spa: 60, spd: 90, spe: 40, sprite: "golisopod", moves: [{n:"First Impression", p:90, t:"Bug", c:"phys"},{n:"Liquidation", p:85, t:"Water", c:"phys"},{n:"Sucker Punch", p:70, t:"Dark", c:"phys"},{n:"Leech Life", p:80, t:"Bug", c:"phys"}] },
+        { name: "Greninja", ability: "Torrent", type: ["Water", "Dark"], hp: 230, atk: 95, def: 67, spa: 103, spd: 71, spe: 122, sprite: "greninja", moves: [{n:"Water Shuriken", p:40, t:"Water", c:"spec"},{n:"Dark Pulse", p:80, t:"Dark", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"},{n:"Hydro Pump", p:110, t:"Water", c:"spec"}] },
+        { name: "Gyarados", ability: "Pressure", type: ["Water", "Flying"], hp: 260, atk: 125, def: 79, spa: 60, spd: 100, spe: 81, sprite: "gyarados", moves: [{n:"Waterfall", p:80, t:"Water", c:"phys"},{n:"Ice Fang", p:65, t:"Ice", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Bounce", p:85, t:"Flying", c:"phys"}] },
+        { name: "Hydreigon", ability: "Levitate", type: ["Dark", "Dragon"], hp: 255, atk: 105, def: 90, spa: 125, spd: 90, spe: 98, sprite: "hydreigon", moves: [{n:"Draco Meteor", p:130, t:"Dragon", c:"spec"},{n:"Dark Pulse", p:80, t:"Dark", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"},{n:"Flash Cannon", p:80, t:"Steel", c:"spec"}] },
+        { name: "Infernape", ability: "Blaze", type: ["Fire", "Fighting"], hp: 235, atk: 104, def: 71, spa: 104, spd: 71, spe: 108, sprite: "infernape", moves: [{n:"Flare Blitz", p:120, t:"Fire", c:"phys"},{n:"Close Combat", p:120, t:"Fighting", c:"phys"},{n:"Thunder Punch", p:75, t:"Electric", c:"phys"},{n:"Mach Punch", p:40, t:"Fighting", c:"phys"}] },
+        { name: "Lapras", ability: "Water Absorb", type: ["Water", "Ice"], hp: 295, atk: 85, def: 80, spa: 85, spd: 95, spe: 60, sprite: "lapras", moves: [{n:"Surf", p:90, t:"Water", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"},{n:"Thunderbolt", p:90, t:"Electric", c:"spec"},{n:"Hydro Pump", p:110, t:"Water", c:"spec"}] },
+        { name: "Lucario", ability: "Tough Claws", type: ["Fighting", "Steel"], hp: 220, atk: 110, def: 70, spa: 115, spd: 70, spe: 90, sprite: "lucario", moves: [{n:"Aura Sphere", p:80, t:"Fighting", c:"spec"},{n:"Close Combat", p:120, t:"Fighting", c:"phys"},{n:"Extreme Speed", p:80, t:"Normal", c:"phys"},{n:"Meteor Mash", p:90, t:"Steel", c:"phys"}] },
+        { name: "Machamp", ability: "Tough Claws", type: ["Fighting"], hp: 260, atk: 130, def: 80, spa: 65, spd: 85, spe: 55, sprite: "machamp", moves: [{n:"Dynamic Punch", p:100, t:"Fighting", c:"phys"},{n:"Stone Edge", p:100, t:"Rock", c:"phys"},{n:"Bullet Punch", p:40, t:"Steel", c:"phys"},{n:"Ice Punch", p:75, t:"Ice", c:"phys"}] },
+        { name: "Metagross", ability: "Tough Claws", type: ["Steel", "Psychic"], hp: 250, atk: 135, def: 130, spa: 95, spd: 90, spe: 70, sprite: "metagross", moves: [{n:"Meteor Mash", p:90, t:"Steel", c:"phys"},{n:"Zen Headbutt", p:80, t:"Psychic", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Bullet Punch", p:40, t:"Steel", c:"phys"}] },
+        { name: "Mewtwo", ability: "Pressure", type: ["Psychic"], hp: 265, atk: 110, def: 90, spa: 154, spd: 90, spe: 130, sprite: "mewtwo", moves: [{n:"Psystrike", p:100, t:"Psychic", c:"spec"},{n:"Aura Sphere", p:80, t:"Fighting", c:"spec"},{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"}] },
+        { name: "Milotic", ability: "Pressure", type: ["Water"], hp: 260, atk: 60, def: 79, spa: 100, spd: 125, spe: 81, sprite: "milotic", moves: [{n:"Surf", p:90, t:"Water", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"},{n:"Hydro Pump", p:110, t:"Water", c:"spec"},{n:"Dragon Pulse", p:85, t:"Dragon", c:"spec"}] },
+        { name: "Mimikyu", ability: "Pressure", type: ["Ghost", "Fairy"], hp: 210, atk: 90, def: 80, spa: 50, spd: 105, spe: 96, sprite: "mimikyu", moves: [{n:"Play Rough", p:90, t:"Fairy", c:"phys"},{n:"Shadow Claw", p:70, t:"Ghost", c:"phys"},{n:"Swords Dance", p:0, t:"Normal", c:"status"},{n:"Wood Hammer", p:120, t:"Grass", c:"phys"}] },
+        { name: "Nidoking", ability: "Sheer Force", type: ["Poison", "Ground"], hp: 251, atk: 102, def: 77, spa: 85, spd: 75, spe: 85, sprite: "nidoking", moves: [{n:"Earth Power", p:90, t:"Ground", c:"spec"},{n:"Sludge Wave", p:95, t:"Poison", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"},{n:"Ice Beam", p:90, t:"Ice", c:"spec"}] },
+        { name: "Pikachu", ability: "Pressure", type: ["Electric"], hp: 185, atk: 55, def: 40, spa: 50, spd: 50, spe: 110, sprite: "pikachu", moves: [{n:"Volt Tackle", p:120, t:"Electric", c:"phys"},{n:"Thunderbolt", p:90, t:"Electric", c:"spec"},{n:"Iron Tail", p:100, t:"Steel", c:"phys"},{n:"Quick Attack", p:40, t:"Normal", c:"phys"}] },
+        { name: "Reshiram", ability: "Pressure", type: ["Dragon", "Fire"], hp: 270, atk: 120, def: 100, spa: 150, spd: 120, spe: 90, sprite: "reshiram", moves: [{n:"Blue Flare", p:130, t:"Fire", c:"spec"},{n:"Draco Meteor", p:130, t:"Dragon", c:"spec"},{n:"Earth Power", p:90, t:"Ground", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"}] },
+        { name: "Roserade", ability: "Pressure", type: ["Grass", "Poison"], hp: 220, atk: 70, def: 65, spa: 125, spd: 105, spe: 90, sprite: "roserade", moves: [{n:"Leaf Storm", p:130, t:"Grass", c:"spec"},{n:"Sludge Bomb", p:90, t:"Poison", c:"spec"},{n:"Giga Drain", p:75, t:"Grass", c:"spec"},{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"}] },
+        { name: "Salamence", ability: "Pressure", type: ["Dragon", "Flying"], hp: 250, atk: 135, def: 80, spa: 110, spd: 80, spe: 100, sprite: "salamence", moves: [{n:"Dragon Claw", p:80, t:"Dragon", c:"phys"},{n:"Hydro Pump", p:110, t:"Water", c:"spec"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"}] },
+        { name: "Sceptile", ability: "Overgrow", type: ["Grass"], hp: 220, atk: 85, def: 65, spa: 105, spd: 85, spe: 120, sprite: "sceptile", moves: [{n:"Leaf Blade", p:90, t:"Grass", c:"phys"},{n:"Swords Dance", p:0, t:"Normal", c:"status"},{n:"Focus Blast", p:120, t:"Fighting", c:"spec"},{n:"Earthquake", p:100, t:"Ground", c:"phys"}] },
+        { name: "Scizor", ability: "Technician", type: ["Bug", "Steel"], hp: 240, atk: 130, def: 100, spa: 55, spd: 80, spe: 65, sprite: "scizor", moves: [{n:"Bullet Punch", p:40, t:"Steel", c:"phys"},{n:"X-Scissor", p:80, t:"Bug", c:"phys"},{n:"Swords Dance", p:0, t:"Normal", c:"status"},{n:"Knock Off", p:65, t:"Dark", c:"phys"}] },
+        { name: "Serperior", ability: "Overgrow", type: ["Grass"], hp: 230, atk: 75, def: 95, spa: 75, spd: 95, spe: 113, sprite: "serperior", moves: [{n:"Leaf Storm", p:130, t:"Grass", c:"spec"},{n:"Dragon Pulse", p:85, t:"Dragon", c:"spec"},{n:"Giga Drain", p:75, t:"Grass", c:"spec"},{n:"Hyper Beam", p:150, t:"Normal", c:"spec"}] },
+        { name: "Skarmory", ability: "Sturdy", type: ["Steel", "Flying"], hp: 240, atk: 80, def: 140, spa: 40, spd: 70, spe: 70, sprite: "skarmory", moves: [{n:"Brave Bird", p:120, t:"Flying", c:"phys"},{n:"Iron Head", p:80, t:"Steel", c:"phys"},{n:"Body Press", p:80, t:"Fighting", c:"phys"},{n:"Drill Peck", p:80, t:"Flying", c:"phys"}] },
+        { name: "Snorlax", ability: "Thick Fat", type: ["Normal"], hp: 285, atk: 110, def: 65, spa: 65, spd: 110, spe: 30, sprite: "snorlax", moves: [{n:"Body Slam", p:85, t:"Normal", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Crunch", p:80, t:"Dark", c:"phys"},{n:"Heavy Slam", p:100, t:"Steel", c:"phys"}] },
+        { name: "Spiritomb", ability: "Pressure", type: ["Ghost", "Dark"], hp: 200, atk: 92, def: 108, spa: 92, spd: 108, spe: 35, sprite: "spiritomb", moves: [{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Dark Pulse", p:80, t:"Dark", c:"spec"},{n:"Psychic", p:90, t:"Psychic", c:"spec"},{n:"Sucker Punch", p:70, t:"Dark", c:"phys"}] },
+        { name: "Swampert", ability: "Torrent", type: ["Water", "Ground"], hp: 260, atk: 110, def: 90, spa: 85, spd: 90, spe: 60, sprite: "swampert", moves: [{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Surf", p:90, t:"Water", c:"spec"},{n:"Waterfall", p:80, t:"Water", c:"phys"},{n:"Ice Punch", p:75, t:"Ice", c:"phys"}] },
+        { name: "Togekiss", ability: "Pressure", type: ["Fairy", "Flying"], hp: 250, atk: 50, def: 95, spa: 120, spd: 115, spe: 80, sprite: "togekiss", moves: [{n:"Air Slash", p:75, t:"Flying", c:"spec"},{n:"Dazzling Gleam", p:80, t:"Fairy", c:"spec"},{n:"Aura Sphere", p:80, t:"Fighting", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"}] },
+        { name: "Tyranitar", ability: "Pressure", type: ["Rock", "Dark"], hp: 260, atk: 134, def: 110, spa: 95, spd: 100, spe: 61, sprite: "tyranitar", moves: [{n:"Stone Edge", p:100, t:"Rock", c:"phys"},{n:"Crunch", p:80, t:"Dark", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Ice Punch", p:75, t:"Ice", c:"phys"}] },
+        { name: "Venusaur", ability: "Overgrow", type: ["Grass", "Poison"], hp: 250, atk: 82, def: 83, spa: 100, spd: 100, spe: 80, sprite: "venusaur", moves: [{n:"Frenzy Plant", p:150, t:"Grass", c:"spec"},{n:"Sludge Bomb", p:90, t:"Poison", c:"spec"},{n:"Giga Drain", p:75, t:"Grass", c:"spec"},{n:"Earth Power", p:90, t:"Ground", c:"spec"}] },
+        { name: "Volcarona", ability: "Pressure", type: ["Bug", "Fire"], hp: 250, atk: 60, def: 65, spa: 135, spd: 105, spe: 100, sprite: "volcarona", moves: [{n:"Fiery Dance", p:80, t:"Fire", c:"spec"},{n:"Bug Buzz", p:90, t:"Bug", c:"spec"},{n:"Giga Drain", p:75, t:"Grass", c:"spec"},{n:"Hurricane", p:110, t:"Flying", c:"spec"}] },
+        { name: "Zekrom", ability: "Pressure", type: ["Dragon", "Electric"], hp: 270, atk: 150, def: 120, spa: 120, spd: 100, spe: 90, sprite: "zekrom", moves: [{n:"Bolt Strike", p:130, t:"Electric", c:"phys"},{n:"Outrage", p:120, t:"Dragon", c:"phys"},{n:"Dragon Claw", p:80, t:"Dragon", c:"phys"},{n:"Fusion Bolt", p:100, t:"Electric", c:"phys"}] },
+        { name: "Zoroark", ability: "Pressure", type: ["Dark"], hp: 220, atk: 105, def: 60, spa: 120, spd: 60, spe: 105, sprite: "zoroark", moves: [{n:"Night Daze", p:85, t:"Dark", c:"spec"},{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Flamethrower", p:90, t:"Fire", c:"spec"},{n:"Focus Blast", p:120, t:"Fighting", c:"spec"}] },
+        { name: "Haxorus", ability: "Pressure", type: ["Dragon"], hp: 240, atk: 147, def: 90, spa: 60, spd: 70, spe: 97, sprite: "haxorus", moves: [{n:"Outrage", p:120, t:"Dragon", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Close Combat", p:120, t:"Fighting", c:"phys"},{n:"Dragon Dance", p:0, t:"Dragon", c:"status"}] },
+        { name: "Garganacl", ability: "Sturdy", type: ["Rock"], hp: 300, atk: 100, def: 130, spa: 45, spd: 90, spe: 35, sprite: "garganacl", moves: [{n:"Salt Cure", p:100, t:"Rock", c:"phys"},{n:"Earthquake", p:100, t:"Ground", c:"phys"},{n:"Body Press", p:80, t:"Fighting", c:"phys"},{n:"Iron Defense", p:0, t:"Steel", c:"status"}] },
+        { name: "Gholdengo", ability: "Pressure", type: ["Steel", "Ghost"], hp: 245, atk: 60, def: 95, spa: 133, spd: 91, spe: 84, sprite: "gholdengo", moves: [{n:"Make It Rain", p:120, t:"Steel", c:"spec"},{n:"Shadow Ball", p:80, t:"Ghost", c:"spec"},{n:"Flash Cannon", p:80, t:"Steel", c:"spec"},{n:"Nasty Plot", p:0, t:"Dark", c:"status"}] },
+        
+        // NOVO POKEMON ADICIONADO: SMEARGLE COM SEUS 4 STATUS MOVES
+        { name: "Smeargle", ability: "Own Tempo", type: ["Normal"], hp: 250, atk: 20, def: 35, spa: 20, spd: 45, spe: 75, sprite: "smeargle", moves: [{n:"Spore", p:0, t:"Grass", c:"status"},{n:"Protect", p:0, t:"Normal", c:"status"},{n:"Swords Dance", p:0, t:"Normal", c:"status"},{n:"Baton Pass", p:0, t:"Normal", c:"status"}] }
+    ];
+
+    POKEDEX.sort((a, b) => a.name.localeCompare(b.name));
+
+    const MASTERS = [
+        { name: "Red", sprite: "red", team: ["Pikachu", "Charizard", "Blastoise", "Venusaur", "Lapras", "Snorlax"] },
+        { name: "Cynthia", sprite: "cynthia", team: ["Spiritomb", "Milotic", "Garchomp", "Togekiss", "Roserade", "Lucario"] },
+        { name: "Steven", sprite: "steven", team: ["Metagross", "Aggron", "Skarmory", "Armaldo", "Excadrill", "Salamence"] },
+        { name: "Giovanni", sprite: "giovanni", team: ["Nidoking", "Tyranitar", "Garchomp", "Aggron", "Excadrill", "Machamp"] },
+        { name: "Guzma", sprite: "guzma", team: ["Golisopod", "Scizor", "Volcarona", "Armaldo", "Shedinja", "Mimikyu"] },
+        { name: "N", sprite: "n", team: ["Zoroark", "Zekrom", "Reshiram", "Hydreigon", "Gastrodon", "Ferrothorn"] }
+    ];
+
+    let playerTeam = [], enemyTeam = [], pIdx = 0, eIdx = 0, forceSwitch = false;
+    let chosenTrainer = "";
+    let enemyMaster = null;
+
+    function init() {
+        const tGrid = document.getElementById("trainer-grid");
+        TRAINERS.forEach(t => {
+            const div = document.createElement("div"); div.className = "option-card";
+            div.innerHTML = `<img src="https://play.pokemonshowdown.com/sprites/trainers/${t}.png"><p style="text-transform: capitalize;">${t}</p>`;
+            div.onclick = () => { chosenTrainer = t; selectPokeScreen(); };
+            tGrid.appendChild(div);
+        });
+    }
+
+    function selectPokeScreen() {
+        document.getElementById("trainer-screen").classList.remove("active-screen");
+        document.getElementById("poke-screen").classList.add("active-screen");
+        const pGrid = document.getElementById("poke-grid");
+        pGrid.innerHTML = "";
+        
+        POKEDEX.forEach((p, idx) => {
+            const div = document.createElement("div"); div.className = "option-card"; div.id = `card-${idx}`;
+            let items = ITEMS.map(i => `<option value="${i.id}">${i.name}</option>`).join("");
+            let types = p.type.map(t => `<span class="type-badge" style="background:${TYPE_COLORS[t]}">${t}</span>`).join("");
+            div.innerHTML = `<img src="https://play.pokemonshowdown.com/sprites/gen5ani/${p.sprite}.gif"><div>${p.name}<br><small style="color:#aaa">${p.ability}</small></div>${types}<select id="item-${idx}" class="item-select" onclick="event.stopPropagation()">${items}</select>`;
+            div.onclick = () => togglePoke(p, idx);
+            pGrid.appendChild(div);
+        });
+    }
+
+    function togglePoke(p, idx) {
+        const item = document.getElementById(`item-${idx}`).value;
+        const found = playerTeam.findIndex(x => x.name === p.name);
+        if (found > -1) { 
+            playerTeam.splice(found, 1); 
+            document.getElementById(`card-${idx}`).classList.remove("selected"); 
+        }
+        else if (playerTeam.length < 6) { 
+            playerTeam.push({...JSON.parse(JSON.stringify(p)), maxHp: p.hp, item: item, sleep: 0, protect: false}); 
+            document.getElementById(`card-${idx}`).classList.add("selected"); 
+        }
+        document.getElementById("builder-title").innerText = `MONTE SUA EQUIPE (${playerTeam.length}/6)`;
+        document.getElementById("next-btn").disabled = playerTeam.length === 0;
+    }
+
+    function showOpponentScreen() {
+        document.getElementById("poke-screen").classList.remove("active-screen");
+        document.getElementById("opponent-screen").classList.add("active-screen");
+        const oGrid = document.getElementById("opponent-grid"); 
+        oGrid.innerHTML = "";
+        
+        MASTERS.forEach(m => {
+            const div = document.createElement("div"); div.className = "option-card";
+            div.innerHTML = `<img src="https://play.pokemonshowdown.com/sprites/trainers/${m.sprite}.png"><h3>${m.name}</h3>`;
+            div.onclick = () => startBattle(m);
+            oGrid.appendChild(div);
+        });
+    }
+
+    function startBattle(m) {
+        enemyMaster = m;
+        enemyTeam = m.team.map(name => {
+            const b = POKEDEX.find(p => p.name === name) || POKEDEX[0];
+            return {...JSON.parse(JSON.stringify(b)), maxHp: b.hp, item: "none", sleep: 0, protect: false};
+        });
+        document.getElementById("opponent-screen").classList.remove("active-screen");
+        document.getElementById("battle-screen").classList.add("active-screen");
+        updateField(); 
+        renderMoves();
+        writeLog(`A batalha contra o Mestre ${m.name} começou!`);
+    }
+
+    function updateField() {
+        const p = playerTeam[pIdx], e = enemyTeam[eIdx];
+        document.getElementById("player-poke-img").src = `https://play.pokemonshowdown.com/sprites/gen5ani-back/${p.sprite}.gif`;
+        document.getElementById("enemy-poke-img").src = `https://play.pokemonshowdown.com/sprites/gen5ani/${e.sprite}.gif`;
+        document.getElementById("player-ui-anchor").innerHTML = renderStatus(p, true);
+        document.getElementById("enemy-ui-anchor").innerHTML = renderStatus(e, false);
+    }
+
+    function renderStatus(p, isP) {
+        const perc = (p.hp / p.maxHp) * 100;
+        const color = perc < 20 ? "#f85838" : (perc < 50 ? "#f8d030" : "#50f850");
+        const avatarImg = isP ? chosenTrainer : enemyMaster.sprite;
+        const sleepTag = p.sleep && p.sleep > 0 ? `<span style="color:#735797; font-weight:bold;">(SLP)</span>` : "";
+
+        return `
+            <div class="status-box ${isP ? 'status-player' : 'status-enemy'}">
+                <img src="https://play.pokemonshowdown.com/sprites/trainers/${avatarImg}.png" class="status-avatar">
+                <div style="flex-grow:1;">
+                    <div style="display:flex; justify-content:space-between;"><b>${p.name.toUpperCase()} ${sleepTag}</b> <span>Lv50</span></div>
+                    <div class="hp-bar-bg"><div class="hp-bar" style="width:${perc}%; background:${color}"></div></div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <span class="speed-tag">SPE: ${p.spe} <span class="ability-tag">HAB: ${p.ability}</span></span>
+                        <span style="font-size:10px;">${Math.ceil(p.hp)}/${p.maxHp}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderMoves() {
+        const p = playerTeam[pIdx];
+        const ctrl = document.getElementById("move-controls"); ctrl.innerHTML = "";
+        p.moves.forEach(m => {
+            const btn = document.createElement("button");
+            btn.className = `btn btn-move ${m.c}`;
+            btn.innerHTML = `${m.n}<br><small>${m.t}</small>`;
+            btn.onclick = () => executeTurn(m);
+            ctrl.appendChild(btn);
+        });
+        document.getElementById("move-panel").style.display = "block";
+        document.getElementById("switch-panel").style.display = "none";
+    }
+
+    function toggleSwitchMenu(show) {
+        document.getElementById("move-panel").style.display = show ? "none" : "block";
+        document.getElementById("switch-panel").style.display = show ? "block" : "none";
+        if(show) {
+            const ctrl = document.getElementById("switch-controls"); ctrl.innerHTML = "";
+            playerTeam.forEach((pk, i) => {
+                const btn = document.createElement("button"); btn.className = "btn btn-switch";
+                btn.innerHTML = `${pk.name} (${Math.ceil(pk.hp)} HP)`;
+                btn.disabled = pk.hp <= 0 || i === pIdx;
+                btn.onclick = () => { 
+                    pIdx = i; 
+                    
+                    // LÓGICA DE PASSAR OS STATUS DO BATON PASS
+                    if (window.batonPassMods) {
+                        let newP = playerTeam[pIdx];
+                        let base = POKEDEX.find(x => x.name === newP.name);
+                        newP.atk = base.atk * window.batonPassMods.atk;
+                        newP.def = base.def * window.batonPassMods.def;
+                        newP.spa = base.spa * window.batonPassMods.spa;
+                        writeLog(`${newP.name} assumiu recebendo os status alterados!`);
+                        window.batonPassMods = null; // Limpa o baton pass
+                    }
+
+                    updateField(); 
+                    if(forceSwitch) { forceSwitch = false; renderMoves(); } 
+                    else { enemyAttack(); } 
+                };
+                ctrl.appendChild(btn);
+            });
+        }
+    }
+
+    async function executeTurn(move) {
+        const p = playerTeam[pIdx], e = enemyTeam[eIdx];
+        document.getElementById("move-panel").style.display = "none";
+        let pSpe = p.spe * (p.item === "choice-scarf" ? 1.5 : 1);
+        
+        // Zera o contador de protect para o novo turno
+        p.protect = false; e.protect = false;
+        
+        if (pSpe >= e.spe) { 
+            await attack(p, e, move, true); 
+            if(e.hp > 0 && !forceSwitch) await enemyAttack(); 
+        } else { 
+            await enemyAttack(); 
+            if(p.hp > 0 && !forceSwitch) await attack(p, e, move, true); 
+        }
+        if (p.hp > 0 && e.hp > 0 && !forceSwitch) renderMoves();
+    }
+
+    // Função de efeitos visuais
+    async function playAttackEffect(isP, move) {
+        if(move.c === 'status' && move.n !== 'Spore') return; // Status não fazem shake (exceto Spore)
+
+        const attacker = document.getElementById(isP ? "player-poke-img" : "enemy-poke-img");
+        const defender = document.getElementById(isP ? "enemy-poke-img" : "player-poke-img");
+        const color = TYPE_COLORS[move.t] || "#fff";
+
+        if (move.c === 'phys') {
+            attacker.classList.add(isP ? "atk-phys-p" : "atk-phys-e");
+        } else if (move.c === 'spec') {
+            attacker.style.filter = `drop-shadow(0 0 10px ${color}) brightness(1.5)`;
+        }
+
+        await new Promise(r => setTimeout(r, 200));
+
+        if (move.c !== 'status' || move.n === "Spore") {
+            if(move.n !== "Spore") defender.classList.add("shake", "hit");
+            const vfx = document.createElement("div");
+            vfx.className = "vfx-element";
+            vfx.style.backgroundColor = color;
+            vfx.style.boxShadow = `0 0 20px ${color}`;
+            vfx.style.width = "60px";
+            vfx.style.height = "60px";
+            const defRect = defender.getBoundingClientRect();
+            const arenaRect = document.getElementById("battle-screen").getBoundingClientRect();
+            vfx.style.left = (defRect.left - arenaRect.left + 50) + "px";
+            vfx.style.top = (defRect.top - arenaRect.top + 50) + "px";
+            vfx.style.animation = "vfx-burst 0.4s forwards";
+            document.getElementById("battle-screen").appendChild(vfx);
+            setTimeout(() => vfx.remove(), 400);
+        }
+
+        await new Promise(r => setTimeout(r, 300));
+        attacker.classList.remove("atk-phys-p", "atk-phys-e");
+        attacker.style.filter = "";
+        defender.classList.remove("shake", "hit");
+    }
+
+    async function attack(atk, def, move, isP) {
+        // MECÂNICA DE SONO
+        if (atk.sleep > 0) {
+            writeLog(`${atk.name} está dormindo profundamente!`);
+            atk.sleep--;
+            await new Promise(r => setTimeout(r, 800));
+            updateField();
+            return;
+        }
+
+        writeLog(`${atk.name} usou ${move.n}!`);
+        await playAttackEffect(isP, move);
+        await new Promise(r => setTimeout(r, 200));
+
+        // MECÂNICA DE PROTECT (Evita danos e Status ofensivos no alvo)
+        if (def.protect && move.c !== "status") {
+            writeLog(`${def.name} protegeu-se do ataque!`);
+            await new Promise(r => setTimeout(r, 800));
+            return;
+        }
+        if (def.protect && move.n === "Spore") {
+            writeLog(`${def.name} protegeu-se do efeito!`);
+            await new Promise(r => setTimeout(r, 800));
+            return;
+        }
+
+        if (move.c === "status") {
+            // SPORE
+            if (move.n === "Spore") {
+                if(def.type.includes("Grass")) {
+                    writeLog(`Não afetou ${def.name}!`);
+                } else {
+                    def.sleep = 3;
+                    writeLog(`${def.name} adormeceu!`);
+                }
+            } 
+            // PROTECT
+            else if (move.n === "Protect") {
+                atk.protect = true;
+                writeLog(`${atk.name} se protegeu contra ataques!`);
+            } 
+            // BATON PASS
+            else if (move.n === "Baton Pass") {
+                let alive = isP ? playerTeam.filter((x,i) => x.hp > 0 && i !== pIdx) : enemyTeam.filter((x,i) => x.hp > 0 && i !== eIdx);
+                if (alive.length === 0) {
+                    writeLog(`Mas falhou, pois não há aliados!`);
+                } else {
+                    writeLog(`${atk.name} preparou o Baton Pass!`);
+                    let base = POKEDEX.find(x => x.name === atk.name);
+                    // Armazena no Global os Modificadores exatos
+                    window.batonPassMods = { 
+                        atk: atk.atk / base.atk, 
+                        def: atk.def / base.def, 
+                        spa: atk.spa / base.spa 
+                    };
+                    if (isP) {
+                        forceSwitch = true;
+                        toggleSwitchMenu(true);
+                        return; // O sistema pausa aqui até a troca
+                    } else {
+                        eIdx = enemyTeam.indexOf(alive[Math.floor(Math.random()*alive.length)]);
+                        let newActive = enemyTeam[eIdx];
+                        let newBase = POKEDEX.find(x => x.name === newActive.name);
+                        newActive.atk = newBase.atk * window.batonPassMods.atk;
+                        newActive.def = newBase.def * window.batonPassMods.def;
+                        newActive.spa = newBase.spa * window.batonPassMods.spa;
+                        writeLog(`O inimigo enviou ${newActive.name} com os status transferidos!`);
+                        window.batonPassMods = null;
+                        updateField();
+                    }
+                }
+            } 
+            // BUFFS ORIGINAIS MANTIDOS
+            else if (move.n === "Swords Dance" || move.n === "Dragon Dance" || move.n === "Nasty Plot") {
+                if(move.n === "Nasty Plot") atk.spa *= 2; else atk.atk *= 2;
+                writeLog(`O status ofensivo de ${atk.name} subiu drasticamente!`);
+            }
+            else if (move.n === "Iron Defense") {
+                atk.def *= 2;
+                writeLog(`A Defesa de ${atk.name} subiu drasticamente!`);
+            }
+            
+            updateField();
+            await new Promise(r => setTimeout(r, 800));
+            return;
+        }
+
+        // LÓGICA DE TIPOS (EFETIVIDADE)
+        let typeMult = 1;
+        def.type.forEach(t => {
+            if (TYPE_CHART[move.t] && TYPE_CHART[move.t][t] !== undefined) {
+                typeMult *= TYPE_CHART[move.t][t];
+            }
+        });
+
+        if (typeMult > 1) writeLog("É super efetivo!");
+        else if (typeMult > 0 && typeMult < 1) writeLog("Não é muito efetivo...");
+        else if (typeMult === 0) { writeLog(`Não afetou ${def.name}!`); updateField(); return; }
+
+        // STAB (Same Type Attack Bonus)
+        let stab = atk.type.includes(move.t) ? 1.5 : 1;
+
+        if (def.ability === "Wonder Guard" && typeMult <= 1) {
+            writeLog(`Não afetou ${def.name} devido à Wonder Guard!`);
+            return;
+        }
+        
+        if (def.ability === "Levitate" && move.t === "Ground") { writeLog(`Não afetou ${def.name}!`); return; }
+        if (def.ability === "Flash Fire" && move.t === "Fire") { writeLog(`${def.name} absorveu o fogo!`); return; }
+        if (def.ability === "Water Absorb" && move.t === "Water") { writeLog(`${def.name} absorveu a água!`); return; }
+        if (def.ability === "Storm Drain" && move.t === "Water") { writeLog(`Storm Drain anulou o ataque!`); return; }
+
+        let powerMod = 1;
+        if (atk.ability === "Technician" && move.p <= 60) powerMod = 1.5;
+
+        // CÁLCULO FINAL DE DANO
+        let dmg = ((move.p * powerMod) * (move.c === 'phys' ? atk.atk : atk.spa)) / (move.c === 'phys' ? def.def : def.spd) * 0.5;
+        dmg *= typeMult;
+        dmg *= stab;
+        
+        if (atk.ability === "Tough Claws" && move.c === 'phys') dmg *= 1.3;
+        if (atk.ability === "Sheer Force") dmg *= 1.3;
+        if (atk.ability === "Blaze" && move.t === "Fire" && atk.hp < atk.maxHp * 0.3) dmg *= 1.5;
+        if (atk.ability === "Torrent" && move.t === "Water" && atk.hp < atk.maxHp * 0.3) dmg *= 1.5;
+        if (atk.ability === "Overgrow" && move.t === "Grass" && atk.hp < atk.maxHp * 0.3) dmg *= 1.5;
+        if (atk.item === "life-orb") { dmg *= 1.3; atk.hp -= atk.maxHp * 0.1; }
+        if (def.ability === "Thick Fat" && (move.t === "Fire" || move.t === "Ice")) dmg *= 0.5;
+        if (def.ability === "Multiscale" && def.hp === def.maxHp) dmg *= 0.5;
+        
+        let prevHp = def.hp;
+        def.hp = Math.max(0, def.hp - dmg);
+        
+        if (def.ability === "Sturdy" && prevHp === def.maxHp && def.hp === 0) {
+            def.hp = 1;
+            writeLog(`${def.name} aguentou o golpe com Sturdy!`);
+        }
+        
+        if (def.item === "rocky-helmet" && move.c === 'phys') atk.hp = Math.max(0, atk.hp - atk.maxHp * 0.15);
+        if (def.ability === "Rough Skin" && move.c === 'phys') atk.hp = Math.max(0, atk.hp - atk.maxHp * 0.125);
+
+        updateField();
+        await new Promise(r => setTimeout(r, 800));
+        
+        if(def.hp <= 0) handleFaint(!isP);
+        if(atk.hp > 0 && def.hp > 0 && atk.hp <= 0) handleFaint(isP);
+    }
+
+    async function enemyAttack() {
+        const e = enemyTeam[eIdx];
+        const move = e.moves[Math.floor(Math.random() * e.moves.length)];
+        await attack(e, playerTeam[pIdx], move, false);
+    }
+
+    function handleFaint(isP) {
+        if(isP) {
+            writeLog(`${playerTeam[pIdx].name} caiu!`);
+            if(playerTeam.every(x => x.hp <= 0)) { alert("Você foi derrotado!"); location.reload(); }
+            forceSwitch = true; toggleSwitchMenu(true);
+        } else {
+            writeLog(`O ${enemyTeam[eIdx].name} inimigo caiu!`);
+            eIdx++;
+            if(eIdx >= enemyTeam.length) { alert("Você venceu o Mestre " + enemyMaster.name + "!"); location.reload(); }
+            else { updateField(); renderMoves(); }
+        }
+    }
+
+    function writeLog(m) {
+        const log = document.getElementById("log");
+        log.innerHTML = `> ${m}<br>` + log.innerHTML;
+    }
+
+    init();
+</script>
+</body>
+</html>
